@@ -284,3 +284,183 @@ fn a_length_byte_beyond_the_padded_key_is_rejected_even_with_valid_check_bytes()
     ));
     assert_eq!(output, [0xa5; 28]);
 }
+
+#[test]
+fn keys_at_the_length_boundaries_round_trip() {
+    let kek = [0x42_u8; 16];
+    let iv = [0x24_u8; 16];
+    let params = KeyWithIvRef::new(&kek, &iv);
+    let mut wrapper = Rfc3211WrapEngine::new(AesEngine::new(), StdRng::seed_from_u64(0x3211));
+
+    // Keys shorter than 3 bytes take part of their check bytes from the random padding; 255 bytes
+    // is the most the length byte can express.
+    for (key_len, wrapped_len) in [(0, 32), (1, 32), (2, 32), (255, 272)] {
+        let key: Vec<u8> = (0..key_len).map(|index| index as u8).collect();
+
+        wrapper.init(WrapDirection::Wrap, &params).unwrap();
+        let mut wrapped = vec![0; wrapper.wrapped_len(key_len).unwrap()];
+        assert_eq!(wrapper.wrap_into(&key, &mut wrapped).unwrap(), wrapped_len);
+
+        wrapper.init(WrapDirection::Unwrap, &params).unwrap();
+        let mut recovered = vec![0; wrapper.max_unwrapped_len(wrapped_len).unwrap()];
+        let recovered_len = wrapper.unwrap_into(&wrapped, &mut recovered).unwrap();
+        assert_eq!(
+            recovered[..recovered_len],
+            key[..],
+            "key of {key_len} bytes"
+        );
+    }
+}
+
+#[test]
+fn a_rejected_reinitialization_leaves_the_wrapper_uninitialized() {
+    let key = [0_u8; 16];
+    let iv = [0x24_u8; 16];
+    let short_iv = [0x24_u8; 15];
+    let mut wrapper = Rfc3211WrapEngine::new(AesEngine::new(), StdRng::seed_from_u64(1));
+    wrapper
+        .init(WrapDirection::Wrap, &KeyWithIvRef::new(&key, &iv))
+        .unwrap();
+
+    assert!(matches!(
+        wrapper.init(WrapDirection::Unwrap, &KeyWithIvRef::new(&key, &short_iv)),
+        Err(KeyWrapInitError::InvalidIvLength {
+            actual: 15,
+            required: 16,
+        })
+    ));
+    assert!(matches!(
+        wrapper.wrap_into(&[0_u8; 16], &mut [0_u8; 32]),
+        Err(KeyWrapError::NotInitialized)
+    ));
+    assert!(matches!(
+        wrapper.unwrap_into(&[0_u8; 32], &mut [0_u8; 28]),
+        Err(KeyWrapError::NotInitialized)
+    ));
+}
+
+#[derive(Debug, PartialEq)]
+struct Exhausted;
+
+impl core::fmt::Display for Exhausted {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("test cipher exhausted")
+    }
+}
+
+impl core::error::Error for Exhausted {}
+
+// A cipher with a chosen block size that passes blocks through unchanged, and fails once it has
+// processed `blocks_left` blocks.
+struct TestCipher {
+    block_size: usize,
+    blocks_left: usize,
+}
+
+impl BlockCipher for TestCipher {
+    type Error = Exhausted;
+
+    fn block_size(&self) -> usize {
+        self.block_size
+    }
+
+    fn process_block(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, Self::Error> {
+        if self.blocks_left == 0 {
+            return Err(Exhausted);
+        }
+        self.blocks_left -= 1;
+        output[..self.block_size].copy_from_slice(&input[..self.block_size]);
+        Ok(self.block_size)
+    }
+}
+
+impl<P: ?Sized> BlockCipherInit<P> for TestCipher {
+    type Error = Infallible;
+
+    fn init(&mut self, _direction: CipherDirection, _params: &P) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_cipher_failure_wipes_a_partial_wrap_and_leaves_the_unwrap_output_untouched() {
+    let key = [0x11_u8; 16];
+    let iv = [0x24_u8; 16];
+    let params = KeyWithIvRef::new(&key, &iv);
+
+    // A 16-byte key wraps into two blocks, and each direction processes four blocks in total, so
+    // every budget below four fails in the first or the second pass.
+    for blocks_left in 0..4 {
+        let cipher = TestCipher {
+            block_size: 16,
+            blocks_left,
+        };
+        let mut wrapper = Rfc3211WrapEngine::new(cipher, StdRng::seed_from_u64(1));
+        wrapper.init(WrapDirection::Wrap, &params).unwrap();
+        let mut output = [0xa5_u8; 40];
+        assert_eq!(
+            wrapper.wrap_into(&key, &mut output),
+            Err(KeyWrapError::Cipher(Exhausted))
+        );
+        assert_eq!(output[..32], [0; 32], "budget of {blocks_left} blocks");
+        assert_eq!(output[32..], [0xa5; 8], "budget of {blocks_left} blocks");
+
+        let cipher = TestCipher {
+            block_size: 16,
+            blocks_left,
+        };
+        let mut unwrapper = Rfc3211WrapEngine::new(cipher, StdRng::seed_from_u64(1));
+        unwrapper.init(WrapDirection::Unwrap, &params).unwrap();
+        let mut output = [0xa5_u8; 28];
+        assert_eq!(
+            unwrapper.unwrap_into(&[0x5a; 32], &mut output),
+            Err(KeyWrapError::Cipher(Exhausted))
+        );
+        assert_eq!(output, [0xa5; 28], "budget of {blocks_left} blocks");
+    }
+}
+
+#[test]
+fn blocks_shorter_than_four_bytes_are_rejected_and_four_byte_blocks_round_trip() {
+    let key = [0_u8; 16];
+    let short_iv = [0x24_u8; 2];
+    let mut wrapper = Rfc3211WrapEngine::new(
+        TestCipher {
+            block_size: 2,
+            blocks_left: usize::MAX,
+        },
+        StdRng::seed_from_u64(1),
+    );
+    let too_short = || KeyWrapError::BlockSizeTooShort {
+        actual: 2,
+        minimum: 4,
+    };
+    assert_eq!(wrapper.wrapped_len(16), Err(too_short()));
+    assert_eq!(wrapper.max_unwrapped_len(16), Err(too_short()));
+    assert!(matches!(
+        wrapper.init(WrapDirection::Wrap, &KeyWithIvRef::new(&key, &short_iv)),
+        Err(KeyWrapInitError::BlockSizeTooShort {
+            actual: 2,
+            minimum: 4,
+        })
+    ));
+
+    let iv = [0x24_u8; 4];
+    let params = KeyWithIvRef::new(&key, &iv);
+    let secret = [0x11_u8, 0x22, 0x33, 0x44, 0x55];
+    let mut wrapper = Rfc3211WrapEngine::new(
+        TestCipher {
+            block_size: 4,
+            blocks_left: usize::MAX,
+        },
+        StdRng::seed_from_u64(1),
+    );
+    wrapper.init(WrapDirection::Wrap, &params).unwrap();
+    let mut wrapped = [0; 12];
+    assert_eq!(wrapper.wrap_into(&secret, &mut wrapped), Ok(12));
+
+    wrapper.init(WrapDirection::Unwrap, &params).unwrap();
+    let mut recovered = [0; 8];
+    assert_eq!(wrapper.unwrap_into(&wrapped, &mut recovered), Ok(5));
+    assert_eq!(recovered[..5], secret);
+}
