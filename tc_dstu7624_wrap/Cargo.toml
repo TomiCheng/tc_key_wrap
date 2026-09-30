@@ -1,0 +1,19 @@
+[package]
+name = "tc_dstu7624_wrap"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "DSTU 7624:2014 (Kalyna) key wrapping over tc_dstu7624."
+readme = "README.md"
+documentation = "https://docs.rs/tc_dstu7624_wrap"
+keywords = ["key-wrap", "dstu7624", "kalyna", "cryptography", "no-std"]
+categories = ["cryptography", "no-std"]
+include = ["src/**", "tests/**", "README.md", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[dependencies]
+tc_block_cipher = "0.1.0"
+tc_dstu7624 = "0.1.0"
+tc_key_wrap = { version = "0.1.0", path = "../tc_key_wrap" }
+tc_zeroize = "0.1.0"

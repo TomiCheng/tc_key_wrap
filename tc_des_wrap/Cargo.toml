@@ -1,0 +1,26 @@
+[package]
+name = "tc_des_wrap"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CMS Triple-DES key wrapping (RFC 3217) with SHA-1 integrity, over tc_des."
+readme = "README.md"
+documentation = "https://docs.rs/tc_des_wrap"
+keywords = ["key-wrap", "triple-des", "cms", "cryptography", "no-std"]
+categories = ["cryptography", "no-std"]
+include = ["src/**", "tests/**", "README.md", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[dependencies]
+rand_core = { workspace = true }
+tc_block_cipher = "0.1.0"
+tc_constant_time = "0.1.0"
+tc_des = "0.1.0"
+tc_digest = "0.1.0"
+tc_key_wrap = { version = "0.1.0", path = "../tc_key_wrap" }
+tc_sha = "0.1.0"
+tc_zeroize = { version = "0.1.0", features = ["alloc"] }
+
+[dev-dependencies]
+rand = { workspace = true }
