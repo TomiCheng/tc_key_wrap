@@ -1,0 +1,33 @@
+[package]
+name = "tc_key_wrap"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "RFC 3394, RFC 5649 and RFC 3211 key wrapping over block ciphers, with shared key-wrap traits."
+readme = "README.md"
+documentation = "https://docs.rs/tc_key_wrap"
+keywords = ["key-wrap", "rfc3394", "rfc5649", "cryptography", "no-std"]
+categories = ["cryptography", "no-std"]
+include = ["src/**", "tests/**", "README.md", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+alloc = ["tc_zeroize/alloc"]
+rand_core = ["dep:rand_core"]
+
+[dependencies]
+rand_core = { workspace = true, optional = true }
+tc_block_cipher = "0.1.0"
+tc_constant_time = "0.1.0"
+tc_zeroize = "0.1.0"
+
+[dev-dependencies]
+rand = { workspace = true }
+tc_aes = "0.1.0"
+tc_aria = "0.1.0"
+tc_des = "0.1.0"
