@@ -19,7 +19,10 @@ code. The default build depends on `tc_block_cipher` and
 [`tc_zeroize`](https://crates.io/crates/tc_zeroize) and provides the traits,
 parameter types and errors; each algorithm is behind its own feature.
 
-Requires Rust 1.85 or later (edition 2024), with any combination of features.
+Requires Rust 1.85 or later (edition 2024) for the default build and the
+`rfc3394`, `rfc5649` and `alloc` features. The `rfc3211` feature follows the
+minimum Rust version of the `rand_core` crate instead, which is 1.85 for
+`rand_core` 0.10.1.
 
 ## Types
 

@@ -29,19 +29,15 @@ jobs:
           - name: Linux x64
             os: ubuntu-latest
             host: x86_64-unknown-linux-gnu
-            x86: true
           - name: Linux ARM64
             os: ubuntu-24.04-arm
             host: aarch64-unknown-linux-gnu
-            x86: false
           - name: macOS ARM64
             os: macos-14
             host: aarch64-apple-darwin
-            x86: false
           - name: Windows x64
             os: windows-latest
             host: x86_64-pc-windows-msvc
-            x86: true
     defaults:
       run:
         shell: bash
@@ -58,10 +54,6 @@ jobs:
           key: ${{ matrix.name }}
       - run: cargo test --locked
       - run: cargo test --locked --all-features
-      # AES-NI hosts otherwise never reach the dispatcher's table fallback.
-      - name: Test without AES-NI detection
-        if: matrix.x86
-        run: cargo test --locked -p tc_aes --features tc_runtime/disable-x86-aes-ni
 
   x86:
     name: Native execution / Linux i686
@@ -91,13 +83,10 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: 1.85.0
       # Rust 1.85 covers the libraries with every first-party feature. The
-      # rustcrypto and rand_core features follow their third-party crates'
-      # MSRV and dev-dependencies such as criterion are exempt, so tests run
-      # on stable only.
+      # rfc3211 feature follows rand_core's MSRV and dev-dependencies are
+      # exempt, so tests run on stable only.
       - run: cargo +1.85.0 check --locked
-      - run: cargo +1.85.0 check --locked -p tc_block_cipher --features alloc
-      - run: cargo +1.85.0 check --locked -p tc_block_modes --features alloc
-      - run: cargo +1.85.0 check --locked -p tc_rc_cipher --features alloc
+      - run: cargo +1.85.0 check --locked -p tc_key_wrap --features rfc5649,alloc
 
   quality:
     name: Format, Clippy, docs and package
@@ -115,11 +104,17 @@ jobs:
           key: build-only
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      # Each algorithm must build on its own, not only next to the others.
+      - name: Clippy each tc_key_wrap feature alone
+        run: |
+          for feature in rfc3394 rfc5649 rfc3211 alloc; do
+            cargo clippy --locked -p tc_key_wrap --all-targets --features "$feature" -- -D warnings
+          done
       - run: cargo doc --locked --no-deps
       - run: cargo doc --locked --no-deps --all-features
-      # Packaged together so the engine and mode crates are verified against
-      # this tc_block_cipher, not the release on crates.io.
-      - run: cargo package --locked -p tc_block_cipher -p tc_aes -p tc_des -p tc_aria -p tc_block_modes -p tc_block_padding -p tc_rc_cipher -p tc_dstu7624
+      # Only the crates prepared for release are packaged; the wrappers built
+      # on tc_key_wrap join this step, in one invocation, as they are.
+      - run: cargo package --locked -p tc_key_wrap
         env:
           # Keep unpacked package manifests outside rust-cache's build tree.
           CARGO_TARGET_DIR: ${{ runner.temp }}/package
@@ -138,7 +133,7 @@ jobs:
       - run: cargo check --locked --target wasm32-unknown-unknown --all-features
       - run: cargo check --locked --target aarch64-unknown-none
       - run: cargo check --locked --target aarch64-unknown-none --all-features
-      - name: Check default dependency sets
+      - name: Check dependency sets
         run: |
           check() {
             expected="$1"; shift
@@ -148,29 +143,12 @@ jobs:
               exit 1
             fi
           }
-          for target in aarch64-unknown-none wasm32-unknown-unknown; do
-            check 'tc_block_cipher tc_zeroize' -p tc_block_cipher --target "$target"
-            check 'tc_block_cipher tc_zeroize' -p tc_block_cipher --target "$target" --features alloc
-            check 'tc_aes tc_block_cipher tc_zeroize' -p tc_aes --target "$target"
-            check 'tc_block_cipher tc_des tc_zeroize' -p tc_des --target "$target"
-            check 'tc_aria tc_block_cipher tc_zeroize' -p tc_aria --target "$target"
-            check 'tc_block_cipher tc_block_modes tc_zeroize' -p tc_block_modes --target "$target"
-            check 'tc_block_cipher tc_block_modes tc_zeroize' -p tc_block_modes --target "$target" --features alloc
-            check 'tc_block_padding' -p tc_block_padding --target "$target"
-            check 'tc_block_cipher tc_rc_cipher tc_zeroize' -p tc_rc_cipher --target "$target"
-            check 'tc_block_cipher tc_rc_cipher tc_zeroize' -p tc_rc_cipher --target "$target" --features alloc
-            check 'tc_block_cipher tc_dstu7624 tc_zeroize' -p tc_dstu7624 --target "$target"
-          done
-          # tc_runtime backs AES-NI detection on x86 targets only. DES, ARIA,
-          # the RC ciphers and Kalyna have no hardware backend, and the modes and
-          # paddings add none of their own, so those crates keep the same sets
-          # there.
-          for target in x86_64-unknown-linux-gnu i686-unknown-linux-gnu; do
-            check 'tc_aes tc_block_cipher tc_runtime tc_zeroize' -p tc_aes --target "$target"
-            check 'tc_block_cipher tc_des tc_zeroize' -p tc_des --target "$target"
-            check 'tc_aria tc_block_cipher tc_zeroize' -p tc_aria --target "$target"
-            check 'tc_block_cipher tc_block_modes tc_zeroize' -p tc_block_modes --target "$target"
-            check 'tc_block_padding' -p tc_block_padding --target "$target"
-            check 'tc_block_cipher tc_rc_cipher tc_zeroize' -p tc_rc_cipher --target "$target"
-            check 'tc_block_cipher tc_dstu7624 tc_zeroize' -p tc_dstu7624 --target "$target"
+          # tc_key_wrap has no platform-specific dependency, so every target
+          # shares the same sets.
+          for target in aarch64-unknown-none wasm32-unknown-unknown x86_64-unknown-linux-gnu i686-unknown-linux-gnu; do
+            check 'tc_block_cipher tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target"
+            check 'tc_block_cipher tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features alloc
+            check 'tc_block_cipher tc_constant_time tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc3394
+            check 'tc_block_cipher tc_constant_time tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc5649
+            check 'rand_core tc_block_cipher tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc3211
           done

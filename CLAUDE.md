@@ -23,44 +23,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   so its results may use tables.
 
 The crate list and workspace-wide checks live in the root
-[README.md](README.md); read it rather than restating it here. Every crate is
-`no_std` and needs no allocator by default. Features are default-off and
-additive: `alloc` on `tc_block_cipher`, `tc_block_modes` and `tc_rc_cipher`,
-`rustcrypto` on `tc_aes`, `tc_des`, `tc_aria` and `tc_rc_cipher`, and
-`rand_core` on `tc_block_padding`.
-`tc_block_cipher` depends on `tc_zeroize` alone; `tc_aes` adds
-`tc_block_cipher` and, on x86 targets only, `tc_runtime`; `tc_des`, `tc_aria`,
-`tc_rc_cipher`, `tc_dstu7624` and `tc_block_modes` add `tc_block_cipher` on
-every target; `tc_block_padding`
-depends on nothing by default. CI enforces each
-crate's default dependency set with `cargo tree` on the
-`wasm32-unknown-unknown`, `aarch64-unknown-none` and x86 targets.
-`tc_block_cipher` carries no algorithm knowledge: key lengths,
-round counts, S-boxes and timing guarantees belong to the engine crates built
-on it, such as `tc_aes` and `tc_des`, never to `tc_block_cipher`.
+[README.md](README.md); read it rather than restating it here. `tc_key_wrap` is
+`no_std` and needs no allocator by default. Its features are default-off and
+additive: `rfc3394`, `rfc5649` (which enables `rfc3394`, whose register loop it
+shares), `rfc3211` (which enables `alloc` and the `rand_core` dependency) and
+`alloc`. The default build carries only the traits, parameter containers and
+errors and depends on `tc_block_cipher` and `tc_zeroize`; `rfc3394` adds
+`tc_constant_time` and `rfc3211` adds `rand_core`. CI enforces each of these
+dependency sets with `cargo tree` on the `wasm32-unknown-unknown`,
+`aarch64-unknown-none` and x86 targets, and runs Clippy on each feature alone so
+that no algorithm silently relies on another's items. `tc_key_wrap` carries no
+cipher: key lengths and timing guarantees of the engines belong to their own
+crates, such as `tc_aes`.
 
-`tc_aes` is constant time on its AES-NI and RustCrypto engines and variable
-time on its table and light engines. Every `tc_des`, `tc_aria` and
-`tc_dstu7624` engine is variable time, as is every RC2 engine in `tc_rc_cipher`; its RC5 and RC6
-engines are constant time only on processors with fixed-latency rotations and,
-for RC6, multiplication. `tc_block_modes` adds only data-independent work, so each mode
-is constant time exactly when its engine is. `tc_block_padding` adds and
-checks padding in constant time with respect to the block contents; only
-`pad_count`'s result reveals the count and whether the padding was valid.
-`tests/documentation.rs` in `tc_des`, `tc_aria`, `tc_rc_cipher`,
-`tc_dstu7624`, `tc_block_modes` and `tc_block_padding` requires each declaration it scans to
-say which. Keep the timing contract of each item stated in its doc
-comment, and do not let a dispatcher (`AesEngine`, `DesEngine`,
-`DesEdeEngine`, `AriaEngine`, `Rc2Engine`) select a leakier engine where a less leaky one
-is available.
+`tc_key_wrap` owns the `KeyWrap` and `KeyWrapInit` contracts; algorithm-specific
+wrappers implement them rather than defining their own. The workspace also holds
+`tc_des_wrap`, `tc_rc2_wrap` and `tc_dstu7624_wrap`, which are not prepared for
+release yet: they have no README, changelog or license texts, and CI neither
+packages them nor checks their dependency sets.
+
+`Rfc3394WrapEngine` is constant time exactly when its cipher is.
+`Rfc5649WrapEngine` is too, except that its padding check follows the recovered
+length. `Rfc3211WrapEngine` is constant time exactly when its cipher is, apart
+from the key length and whether its check passed. `tests/documentation.rs`
+requires each declaration it scans to say which, and matches the phrase within
+one line, so never wrap a line between "constant" or "variable" and "time".
+Keep the timing contract of each item stated in its doc comment. A failed
+unwrap must never leave unauthenticated key material in the output.
 
 Rust 1.85 is guaranteed only where the workspace controls every crate: the
-default build and first-party features such as `alloc`, whose dependencies are
-all `tc_*` crates. A feature that enables a third-party crate (`rustcrypto`
-enables `aes`, 0.9.3 of which requires 1.89) follows that crate's MSRV, and
-dev-dependencies (`criterion` requires 1.86) are exempt. The MSRV job therefore
-runs `cargo check` on 1.85 for the guaranteed builds only; tests run on stable.
-`.cargo/config.toml` sets `incompatible-rust-versions = "allow"` so
+default build and first-party features such as `rfc3394`, `rfc5649` and
+`alloc`, whose dependencies are all `tc_*` crates. A feature that enables a
+third-party crate (`rfc3211` enables `rand_core`, 0.10.1 of which declares
+1.85) follows that crate's MSRV, and dev-dependencies are exempt. The MSRV job
+therefore runs `cargo check` on 1.85 for the guaranteed builds only; tests run
+on stable. `.cargo/config.toml` sets `incompatible-rust-versions = "allow"` so
 `Cargo.lock` tracks the latest releases and stable CI tests what current
 toolchains resolve. Adding a third-party dependency to a default build or a
 first-party feature hands the 1.85 guarantee to that crate; raise it before
@@ -79,7 +76,7 @@ Each crate ships its own `README.md`, `CHANGELOG.md`, `LICENSE-MIT`,
 entries are written as `## <version> - Unreleased` and dated in a separate
 commit at release, with `### Added` and `### Compatibility` sections.
 
-Adding a crate to the workspace means five edits beyond the crate itself: the
+Preparing a crate for release means five edits beyond the crate itself: the
 `members` list, a `-p <crate>` on the single `cargo package --locked` step in
 the CI `quality` job (the only place package archives are verified; packaging
 the crates in one invocation checks each against its siblings' local sources
@@ -91,12 +88,10 @@ than 1.85.
 
 Documentation is part of the contract: crates use `#![deny(missing_docs)]`,
 doctests carry the executable examples, and CI runs `cargo doc` with
-`RUSTDOCFLAGS: -D warnings`, with and without `--all-features`. An additive
-public API change belongs in the crate README's contract lists — "Traits" and
-"Types" in `tc_block_cipher/README.md`, `tc_block_modes/README.md` and
-`tc_block_padding/README.md` and `tc_rc_cipher/README.md`,
-"Types" in `tc_aes/README.md`, `tc_des/README.md`, `tc_aria/README.md` and
-`tc_dstu7624/README.md` —
+`RUSTDOCFLAGS: -D warnings`, with and without `--all-features`. Doc links to
+feature-gated items break the build without that feature, so name them in plain
+code spans. An additive public API change belongs in the crate README's
+contract lists — "Types", "Traits" and "Features" in `tc_key_wrap/README.md` —
 and in the changelog, not only in the code.
 
 Work happens on `feat/*` branches off `develop`; pull requests target `develop`,
