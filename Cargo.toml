@@ -1,0 +1,14 @@
+[workspace]
+resolver = "3"
+members = ["tc_key_wrap", "tc_des_wrap", "tc_dstu7624_wrap", "tc_rc2_wrap"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/TomiCheng/tc_key_wrap"
+
+[workspace.dependencies]
+criterion = "0.8.2"
+rand_core = "0.10.1"
+rand = "0.10.3"
