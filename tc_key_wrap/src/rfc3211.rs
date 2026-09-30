@@ -13,9 +13,9 @@ const MINIMUM_BLOCK_BYTES: usize = 4;
 /// RFC 3211 password-based key wrapping over a cipher `C` with blocks of 4
 /// bytes or more.
 ///
-/// Available with the `alloc` and `rand_core` features. Wraps a key of up to
-/// 255 bytes: a length byte and three check bytes, the key and random padding
-/// from `R`, encrypted twice with CBC under a one-block IV. Unwrapping checks
+/// Available with the `rfc3211` feature. Wraps a key of up to 255 bytes: a
+/// length byte and three check bytes, the key and random padding from `R`,
+/// encrypted twice with CBC under a one-block IV. Unwrapping checks
 /// the length and check bytes before copying the key into the caller's output.
 ///
 /// Constant time exactly when the cipher is, apart from the key length and

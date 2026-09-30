@@ -11,6 +11,8 @@ const DEFAULT_IV: [u8; 8] = [0xa6; 8];
 
 /// RFC 3394 key wrapping (AES key wrap) over a cipher `C` with 16-byte blocks.
 ///
+/// Available with the `rfc3394` feature.
+///
 /// The key to wrap is 8 bytes or more, in multiples of 8, and the output is 8
 /// bytes longer. The IV comes through [`IvOptParams`]: `None` selects the
 /// standard `A6A6A6A6A6A6A6A6`, `Some` an 8-byte custom value that unwrapping

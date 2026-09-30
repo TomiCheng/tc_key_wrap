@@ -1,3 +1,5 @@
+#![cfg(feature = "rfc5649")]
+
 use tc_aes::AesEngine;
 use tc_aria::AriaEngine;
 use tc_block_cipher::{BlockCipher, BlockCipherInit};

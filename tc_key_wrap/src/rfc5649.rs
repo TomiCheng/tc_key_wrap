@@ -10,6 +10,8 @@ const DEFAULT_AIV_PREFIX: [u8; 4] = [0xa6, 0x59, 0x59, 0xa6];
 
 /// RFC 5649 key wrapping with padding over a cipher `C` with 16-byte blocks.
 ///
+/// Available with the `rfc5649` feature.
+///
 /// Wraps a key of any length from 1 byte; the output is the key rounded up to
 /// a multiple of 8, plus 8. The alternative IV's 4-byte prefix comes through
 /// [`IvOptParams`]: `None` selects the standard `A65959A6`, `Some` a custom

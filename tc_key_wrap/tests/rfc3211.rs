@@ -1,4 +1,4 @@
-#![cfg(all(feature = "alloc", feature = "rand_core"))]
+#![cfg(feature = "rfc3211")]
 
 use core::convert::Infallible;
 

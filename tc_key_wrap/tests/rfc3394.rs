@@ -1,3 +1,5 @@
+#![cfg(feature = "rfc3394")]
+
 use tc_aes::AesEngine;
 use tc_block_cipher::BlockCipher;
 use tc_key_wrap::{
