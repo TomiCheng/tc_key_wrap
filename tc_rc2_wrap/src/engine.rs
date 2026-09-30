@@ -29,6 +29,10 @@ const IV2: [u8; BLOCK_BYTES] = [0x4a, 0xdd, 0xa2, 0x2c, 0x79, 0xe8, 0x21, 0x05];
 /// `KeyParams`, `Rc2Params` for the effective size and `IvOptParams` for the
 /// IV, as [`Rc2WrapParamsRef`](crate::Rc2WrapParamsRef) does.
 ///
+/// The IV is fixed at `init`, as in Bouncy Castle: every wrap until the next
+/// `init` uses it. Initialize again before each wrap so that every wrapped key
+/// gets a fresh IV.
+///
 /// Variable time: the RC2 engine indexes tables with secret data. Output left
 /// by a failed wrap is wiped.
 ///
@@ -268,9 +272,10 @@ where
     /// Installs the RC2 key and effective size from `params` for `direction`.
     ///
     /// Wrapping takes an 8-byte IV from `params` or, given `None`, draws one from
-    /// the generator; unwrapping takes no IV and returns `IvNotAllowedForUnwrap`
-    /// for one. A failed `init` leaves the wrapper uninitialized. Variable time: RC2 key setup
-    /// indexes the PI table with key bytes.
+    /// the generator, and keeps it for every wrap until the next `init`;
+    /// unwrapping takes no IV and returns `IvNotAllowedForUnwrap` for one. A
+    /// failed `init` leaves the wrapper uninitialized. Variable time: RC2 key
+    /// setup indexes the PI table with key bytes.
     fn init(&mut self, direction: WrapDirection, params: &P) -> Result<(), Self::Error> {
         // Invalidate first, so a failure at any step leaves neither the previous direction nor the
         // previous IV usable.
