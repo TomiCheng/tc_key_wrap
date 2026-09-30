@@ -7,7 +7,7 @@ use rand::rngs::StdRng;
 use rand_core::{TryCryptoRng, TryRng};
 use tc_aes::AesEngine;
 use tc_aria::AriaEngine;
-use tc_block_cipher::{BlockCipher, BlockCipherInit};
+use tc_block_cipher::{BlockCipher, BlockCipherInit, CipherDirection};
 use tc_des::{DesEdeEngine, DesEngine};
 use tc_key_wrap::{
     KeyWithIvRef, KeyWrap, KeyWrapError, KeyWrapInit, KeyWrapInitError, Rfc3211WrapEngine,
@@ -230,6 +230,54 @@ fn unwrap_rejects_tampering_without_exposing_key_material() {
     unwrapper.init(WrapDirection::Unwrap, &params).unwrap();
     let mut output = [0xa5_u8; 28];
 
+    assert!(matches!(
+        unwrapper.unwrap_into(&wrapped, &mut output),
+        Err(KeyWrapError::IntegrityCheckFailed)
+    ));
+    assert_eq!(output, [0xa5; 28]);
+}
+
+// Encrypts `plaintext` as RFC 3211 wrapping does, CBC under `iv` and then CBC again from the last
+// ciphertext block, so a test can choose the length and check bytes that `wrap_into` would set.
+fn aes_double_cbc(kek: &[u8], iv: &[u8], plaintext: &[u8]) -> Vec<u8> {
+    let mut cipher = AesEngine::new();
+    cipher
+        .init(CipherDirection::Encrypt, &KeyWithIvRef::new(kek, iv))
+        .unwrap();
+    let mut data = plaintext.to_vec();
+    let mut chain = iv.to_vec();
+    for _ in 0..2 {
+        for block in data.chunks_exact_mut(16) {
+            let input: Vec<u8> = block.iter().zip(&chain).map(|(b, c)| b ^ c).collect();
+            cipher.process_block(&input, block).unwrap();
+            chain.copy_from_slice(block);
+        }
+    }
+    data
+}
+
+#[test]
+fn a_length_byte_beyond_the_padded_key_is_rejected_even_with_valid_check_bytes() {
+    let kek = hex("000102030405060708090A0B0C0D0E0F");
+    let iv = hex("000102030405060708090A0B0C0D0E0F");
+    let params = KeyWithIvRef::new(&kek, &iv);
+    let mut unwrapper = Rfc3211WrapEngine::new(AesEngine::new(), FixedRng::new(Vec::new()));
+    unwrapper.init(WrapDirection::Unwrap, &params).unwrap();
+
+    // The check bytes complement the first key bytes, so only the length byte can fail.
+    let mut plaintext = [0x5a_u8; 32];
+    plaintext[1..4].fill(!0x5a);
+
+    // 28 bytes is the most that two AES blocks hold after the 4-byte header.
+    plaintext[0] = 28;
+    let mut output = [0xa5_u8; 28];
+    let wrapped = aes_double_cbc(&kek, &iv, &plaintext);
+    assert_eq!(unwrapper.unwrap_into(&wrapped, &mut output).unwrap(), 28);
+    assert_eq!(output[..], plaintext[4..]);
+
+    plaintext[0] = 29;
+    let mut output = [0xa5_u8; 28];
+    let wrapped = aes_double_cbc(&kek, &iv, &plaintext);
     assert!(matches!(
         unwrapper.unwrap_into(&wrapped, &mut output),
         Err(KeyWrapError::IntegrityCheckFailed)

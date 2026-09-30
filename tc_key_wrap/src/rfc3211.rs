@@ -10,13 +10,17 @@ use tc_zeroize::{Zeroize, Zeroizing};
 
 const MINIMUM_BLOCK_BYTES: usize = 4;
 
-/// RFC 3211 password-based key wrapping over a cipher `C` with blocks of 4
-/// bytes or more.
+/// RFC 3211 key wrapping (the PWRI-KEK algorithm) over a cipher `C` with
+/// blocks of 4 bytes or more.
 ///
 /// Available with the `rfc3211` feature. Wraps a key of up to 255 bytes: a
 /// length byte and three check bytes, the key and random padding from `R`,
 /// encrypted twice with CBC under a one-block IV. Unwrapping checks
 /// the length and check bytes before copying the key into the caller's output.
+///
+/// The engine takes the key-encryption key, not a password: for CMS
+/// password-based recipients, derive that key from the password first, for
+/// example with PBKDF2.
 ///
 /// Constant time exactly when the cipher is, apart from the key length and
 /// whether the check passed, which the result reveals; wrapping adds the
@@ -257,7 +261,8 @@ where
             difference |= (!recovered[1 + index]) ^ recovered[4 + index];
         }
 
-        if invalid_length || difference != 0 {
+        // Non-short-circuit, as in Bouncy Castle, so a bad length does not skip the check-byte test.
+        if invalid_length | (difference != 0) {
             return Err(KeyWrapError::IntegrityCheckFailed);
         }
 
