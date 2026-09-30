@@ -26,7 +26,8 @@ const IV2: [u8; BLOCK_BYTES] = [0x4a, 0xdd, 0xa2, 0x2c, 0x79, 0xe8, 0x21, 0x05];
 /// 128 bytes with an effective size of 1 to 1024 bits. The output is 16 bytes
 /// longer than the padded key. Wrapping takes an 8-byte IV from its
 /// parameters or, given `None`, draws one from `R`. The parameters implement
-/// `Rc2Params` for the effective size and `IvOptParams` for the IV.
+/// `KeyParams`, `Rc2Params` for the effective size and `IvOptParams` for the
+/// IV, as [`Rc2WrapParamsRef`](crate::Rc2WrapParamsRef) does.
 ///
 /// Variable time: the RC2 engine indexes tables with secret data. Output left
 /// by a failed wrap is wiped.
@@ -36,34 +37,11 @@ const IV2: [u8; BLOCK_BYTES] = [0x4a, 0xdd, 0xa2, 0x2c, 0x79, 0xe8, 0x21, 0x05];
 /// ```
 /// use rand::SeedableRng;
 /// use rand::rngs::StdRng;
-/// use tc_block_cipher::KeyParams;
-/// use tc_key_wrap::{IvOptParams, KeyWrap, KeyWrapInit, WrapDirection};
-/// use tc_rc2_wrap::Rc2WrapEngine;
-/// use tc_rc_cipher::Rc2Params;
+/// use tc_key_wrap::{KeyWrap, KeyWrapInit, WrapDirection};
+/// use tc_rc2_wrap::{Rc2WrapEngine, Rc2WrapParamsRef};
 ///
-/// struct Params<'a> {
-///     key: &'a [u8],
-/// }
-///
-/// impl KeyParams for Params<'_> {
-///     fn key(&self) -> &[u8] {
-///         self.key
-///     }
-/// }
-///
-/// impl Rc2Params for Params<'_> {
-///     fn effective_key_bits(&self) -> usize {
-///         128
-///     }
-/// }
-///
-/// impl IvOptParams for Params<'_> {
-///     fn iv_opt(&self) -> Option<&[u8]> {
-///         None
-///     }
-/// }
-///
-/// let params = Params { key: &[0x42; 16] };
+/// let kek = [0x42; 16];
+/// let params = Rc2WrapParamsRef::new(&kek, None);
 /// let key = [0x11; 16];
 /// let mut wrapper = Rc2WrapEngine::new(StdRng::seed_from_u64(1));
 ///
