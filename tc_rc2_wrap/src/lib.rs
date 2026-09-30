@@ -13,8 +13,10 @@
 extern crate alloc;
 
 mod engine;
+mod params;
 
 pub use engine::Rc2WrapEngine;
+pub use params::{Rc2WrapParamsOwned, Rc2WrapParamsRef};
 
 /// CMS RC2 key-wrap operation error.
 pub type Rc2WrapError = tc_key_wrap::KeyWrapError<tc_block_cipher::BlockError>;

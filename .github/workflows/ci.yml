@@ -83,8 +83,8 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: 1.85.0
       # Rust 1.85 covers the libraries with every first-party feature. The
-      # rfc3211 feature follows rand_core's MSRV and dev-dependencies are
-      # exempt, so tests run on stable only.
+      # rfc3211 feature and tc_rc2_wrap follow rand_core's MSRV and
+      # dev-dependencies are exempt, so tests run on stable only.
       - run: cargo +1.85.0 check --locked
       - run: cargo +1.85.0 check --locked -p tc_key_wrap --features rfc5649,alloc
 
@@ -112,9 +112,10 @@ jobs:
           done
       - run: cargo doc --locked --no-deps
       - run: cargo doc --locked --no-deps --all-features
-      # Only the crates prepared for release are packaged; the wrappers built
-      # on tc_key_wrap join this step, in one invocation, as they are.
-      - run: cargo package --locked -p tc_key_wrap
+      # Packaged together so the wrappers are verified against this
+      # tc_key_wrap; the wrappers not prepared for release yet join as they
+      # are.
+      - run: cargo package --locked -p tc_key_wrap -p tc_rc2_wrap
         env:
           # Keep unpacked package manifests outside rust-cache's build tree.
           CARGO_TARGET_DIR: ${{ runner.temp }}/package
@@ -143,7 +144,7 @@ jobs:
               exit 1
             fi
           }
-          # tc_key_wrap has no platform-specific dependency, so every target
+          # No crate here has a platform-specific dependency, so every target
           # shares the same sets.
           for target in aarch64-unknown-none wasm32-unknown-unknown x86_64-unknown-linux-gnu i686-unknown-linux-gnu; do
             check 'tc_block_cipher tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target"
@@ -151,4 +152,5 @@ jobs:
             check 'tc_block_cipher tc_constant_time tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc3394
             check 'tc_block_cipher tc_constant_time tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc5649
             check 'rand_core tc_block_cipher tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc3211
+            check 'rand_core tc_block_cipher tc_constant_time tc_digest tc_key_wrap tc_rc2_wrap tc_rc_cipher tc_sha tc_zeroize' -p tc_rc2_wrap --target "$target"
           done
