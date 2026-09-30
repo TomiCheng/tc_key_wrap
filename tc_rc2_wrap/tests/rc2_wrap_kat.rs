@@ -4,7 +4,7 @@ use rand_core::{TryCryptoRng, TryRng};
 use tc_block_cipher::KeyParams;
 use tc_key_wrap::{IvOptParams, KeyWrap, KeyWrapInit, WrapDirection};
 use tc_rc_cipher::Rc2Params;
-use tc_rc2_wrap::{Rc2WrapEngine, Rc2WrapError, Rc2WrapInitError};
+use tc_rc2_wrap::{Rc2WrapEngine, Rc2WrapError, Rc2WrapInitError, Rc2WrapParamsRef};
 
 fn hex(input: &str) -> Vec<u8> {
     (0..input.len())
@@ -72,7 +72,7 @@ const WRAPPED: &str =
     "70e699fb5701f7833330fb71e87c85a420bdc99af05d22af5a0e48d35f3138986cbaafb4b28d4f35";
 
 #[test]
-fn rfc3217_vector_and_generated_iv() {
+fn wrap_matches_the_rfc_3217_vector_with_a_given_or_generated_iv_and_unwraps_back() {
     let key = hex(KEK);
     let iv = hex(IV);
     let input = hex(INPUT);
@@ -107,7 +107,7 @@ fn rfc3217_vector_and_generated_iv() {
 }
 
 #[test]
-fn variable_lengths_dynamic_dispatch_and_tampering() {
+fn keys_of_varied_lengths_round_trip_through_a_trait_object() {
     let key = [0x5a; 16];
     for length in [0, 1, 7, 8, 15, 16, 31, 255] {
         let input: Vec<u8> = (0..length).map(|i| i as u8).collect();
@@ -127,7 +127,10 @@ fn variable_lengths_dynamic_dispatch_and_tampering() {
         let n = u.unwrap_into(&wrapped, &mut recovered).unwrap();
         assert_eq!(&recovered[..n], input, "length {length}");
     }
+}
 
+#[test]
+fn tampering_is_rejected_without_touching_the_output() {
     let key = hex(KEK);
     let params = Params {
         key: &key,
@@ -147,7 +150,7 @@ fn variable_lengths_dynamic_dispatch_and_tampering() {
 }
 
 #[test]
-fn rejects_external_iv_for_unwrap() {
+fn an_iv_supplied_for_unwrapping_is_rejected() {
     let key = hex(KEK);
     let iv = hex(IV);
     let params = Params {
@@ -159,5 +162,34 @@ fn rejects_external_iv_for_unwrap() {
     assert_eq!(
         w.init(WrapDirection::Unwrap, &params),
         Err(Rc2WrapInitError::IvNotAllowedForUnwrap)
+    );
+}
+
+#[test]
+fn a_rejected_reinitialization_leaves_the_wrapper_uninitialized() {
+    let kek = hex(KEK);
+    let iv = hex(IV);
+    let short_iv = [0xc7_u8; 7];
+    let mut w = Rc2WrapEngine::new(FixedRng::new(Vec::new()));
+    w.init(WrapDirection::Wrap, &Rc2WrapParamsRef::new(&kek, Some(&iv)))
+        .unwrap();
+
+    assert_eq!(
+        w.init(
+            WrapDirection::Wrap,
+            &Rc2WrapParamsRef::new(&kek, Some(&short_iv))
+        ),
+        Err(Rc2WrapInitError::InvalidIvLength {
+            actual: 7,
+            required: 8,
+        })
+    );
+    assert_eq!(
+        w.wrap_into(&[0x11; 16], &mut [0; 40]),
+        Err(Rc2WrapError::NotInitialized)
+    );
+    assert_eq!(
+        w.unwrap_into(&hex(WRAPPED), &mut [0; 23]),
+        Err(Rc2WrapError::NotInitialized)
     );
 }

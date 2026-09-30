@@ -14,6 +14,7 @@ const DECLARATIONS: &[&str] = &[
     "fn wrap_into(",
     "fn unwrap_into(",
     "fn key(",
+    "fn effective_key_bits(",
     "fn iv(",
     "fn iv_opt(",
     "fn zeroize(",
@@ -92,10 +93,22 @@ mod tests {
 
 #[test]
 fn every_public_api_and_implemented_trait_method_has_an_unambiguous_timing_doc() {
-    let (checked, missing) = missing_timing_docs(include_str!("../src/engine.rs"));
-    assert!(checked > 0, "no declarations scanned in engine.rs");
-    assert!(
-        missing.is_empty(),
-        "missing timing docs in engine.rs: {missing:?}"
-    );
+    for (name, source) in [
+        ("engine.rs", include_str!("../src/engine.rs")),
+        (
+            "params/rc2_wrap_params_owned.rs",
+            include_str!("../src/params/rc2_wrap_params_owned.rs"),
+        ),
+        (
+            "params/rc2_wrap_params_ref.rs",
+            include_str!("../src/params/rc2_wrap_params_ref.rs"),
+        ),
+    ] {
+        let (checked, missing) = missing_timing_docs(source);
+        assert!(checked > 0, "no declarations scanned in {name}");
+        assert!(
+            missing.is_empty(),
+            "missing timing docs in {name}: {missing:?}"
+        );
+    }
 }

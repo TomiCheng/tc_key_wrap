@@ -13,12 +13,12 @@ categories = ["cryptography", "no-std"]
 include = ["src/**", "tests/**", "README.md", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [dependencies]
-rand_core = { workspace = true }
+rand_core = "0.10.1"
 tc_block_cipher = "0.1.0"
 tc_constant_time = "0.1.0"
 tc_digest = "0.1.0"
 tc_key_wrap = { version = "0.1.0", path = "../tc_key_wrap" }
-tc_rc_cipher = "0.1.0"
+tc_rc_cipher = { version = "0.1.0", features = ["alloc"] }
 tc_sha = "0.1.0"
 tc_zeroize = { version = "0.1.0", features = ["alloc"] }
 
