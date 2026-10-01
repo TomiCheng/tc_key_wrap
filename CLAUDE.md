@@ -43,16 +43,17 @@ wrappers implement them rather than defining their own. `tc_des_wrap` and
 allocator and `rand_core` in every build, so each depends on its cipher crate
 plus `rand_core`, `tc_block_cipher`, `tc_constant_time`, `tc_digest`,
 `tc_key_wrap`, `tc_sha` and `tc_zeroize`. Both fix the IV at `init`, as
-Bouncy Castle does. The workspace also holds `tc_dstu7624_wrap`, which is not
-prepared for release yet: it has no README, changelog or license texts, and CI
-neither packages it nor checks its dependency set.
+Bouncy Castle does. `tc_dstu7624_wrap` is the third: the DSTU 7624:2014
+(Kalyna) key wrap over `tc_dstu7624`, with the block width as a const
+generic. It takes no IV, needs neither an allocator nor a generator, and
+depends on `tc_block_cipher`, `tc_dstu7624`, `tc_key_wrap` and `tc_zeroize`.
 
 `Rfc3394WrapEngine` is constant time exactly when its cipher is.
 `Rfc5649WrapEngine` is too, except that its padding check follows the recovered
 length. `Rfc3211WrapEngine` is constant time exactly when its cipher is, apart
-from the key length and whether its check passed. `DesEdeWrapEngine` and
-`Rc2WrapEngine` are variable time, because their engines index tables with
-secret data.
+from the key length and whether its check passed. `DesEdeWrapEngine`,
+`Dstu7624WrapEngine` and `Rc2WrapEngine` are variable time, because their
+engines index tables with secret data.
 `tests/documentation.rs` requires each declaration it scans to say which, and
 matches the phrase within one line, so never wrap a line between "constant" or
 "variable" and "time".
@@ -101,7 +102,8 @@ doctests carry the executable examples, and CI runs `cargo doc` with
 feature-gated items break the build without that feature, so name them in plain
 code spans. An additive public API change belongs in the crate README's
 contract lists — "Types", "Traits" and "Features" in `tc_key_wrap/README.md`,
-"Types" in `tc_des_wrap/README.md` and `tc_rc2_wrap/README.md` —
+"Types" in `tc_des_wrap/README.md`, `tc_dstu7624_wrap/README.md` and
+`tc_rc2_wrap/README.md` —
 and in the changelog, not only in the code.
 
 Work happens on `feat/*` branches off `develop`; pull requests target `develop`,

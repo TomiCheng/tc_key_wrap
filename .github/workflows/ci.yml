@@ -113,9 +113,8 @@ jobs:
       - run: cargo doc --locked --no-deps
       - run: cargo doc --locked --no-deps --all-features
       # Packaged together so the wrappers are verified against this
-      # tc_key_wrap; the wrappers not prepared for release yet join as they
-      # are.
-      - run: cargo package --locked -p tc_key_wrap -p tc_des_wrap -p tc_rc2_wrap
+      # tc_key_wrap, not the release on crates.io.
+      - run: cargo package --locked -p tc_key_wrap -p tc_des_wrap -p tc_dstu7624_wrap -p tc_rc2_wrap
         env:
           # Keep unpacked package manifests outside rust-cache's build tree.
           CARGO_TARGET_DIR: ${{ runner.temp }}/package
@@ -153,5 +152,6 @@ jobs:
             check 'tc_block_cipher tc_constant_time tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc5649
             check 'rand_core tc_block_cipher tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc3211
             check 'rand_core tc_block_cipher tc_constant_time tc_des tc_des_wrap tc_digest tc_key_wrap tc_sha tc_zeroize' -p tc_des_wrap --target "$target"
+            check 'tc_block_cipher tc_dstu7624 tc_dstu7624_wrap tc_key_wrap tc_zeroize' -p tc_dstu7624_wrap --target "$target"
             check 'rand_core tc_block_cipher tc_constant_time tc_digest tc_key_wrap tc_rc2_wrap tc_rc_cipher tc_sha tc_zeroize' -p tc_rc2_wrap --target "$target"
           done
