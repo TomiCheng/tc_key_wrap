@@ -12,7 +12,9 @@
 
 mod engine;
 
-pub use engine::Dstu7624WrapEngine;
+pub use engine::{
+    Dstu7624WrapEngine, Dstu7624WrapEngine128, Dstu7624WrapEngine256, Dstu7624WrapEngine512,
+};
 
 /// DSTU 7624 key-wrap operation error.
 pub type Dstu7624WrapError = tc_key_wrap::KeyWrapError<tc_block_cipher::BlockError>;
