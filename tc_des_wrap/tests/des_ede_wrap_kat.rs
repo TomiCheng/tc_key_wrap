@@ -54,7 +54,7 @@ const WRAPPED: &str =
     "690107618ef092b3b48ca1796b234ae9fa33ebb4159604037db5d6a84eb3aac2768c632775a467d4";
 
 #[test]
-fn bouncy_castle_vector_and_generated_iv() {
+fn wrap_matches_the_bouncy_castle_vector_with_a_given_or_generated_iv_and_unwraps_back() {
     let key = hex(KEK);
     let iv = hex(IV);
     let input = hex(INPUT);
@@ -80,7 +80,7 @@ fn bouncy_castle_vector_and_generated_iv() {
 }
 
 #[test]
-fn two_key_des_dynamic_dispatch_and_tampering() {
+fn a_two_key_kek_round_trips_through_a_trait_object() {
     let key = hex("0123456789abcdeffedcba9876543210");
     let iv = hex(IV);
     let input = hex("00112233445566778899aabbccddeeff");
@@ -99,18 +99,27 @@ fn two_key_des_dynamic_dispatch_and_tampering() {
     let mut recovered = vec![0; unwrapper.max_unwrapped_len(wrapped.len()).unwrap()];
     let written = unwrapper.unwrap_into(&wrapped, &mut recovered).unwrap();
     assert_eq!(&recovered[..written], input);
-
-    wrapped[20] ^= 1;
-    let mut protected = [0xa5; 16];
-    assert_eq!(
-        unwrapper.unwrap_into(&wrapped, &mut protected),
-        Err(DesEdeWrapError::IntegrityCheckFailed)
-    );
-    assert_eq!(protected, [0xa5; 16]);
 }
 
 #[test]
-fn rejects_external_iv_for_unwrap() {
+fn tampering_is_rejected_without_touching_the_output() {
+    let key = hex(KEK);
+    let mut wrapped = hex(WRAPPED);
+    wrapped[20] ^= 1;
+    let mut unwrapper = DesEdeWrapEngine::new(FixedRng::new(Vec::new()));
+    unwrapper
+        .init(WrapDirection::Unwrap, &KeyWithIvOptRef::new(&key, None))
+        .unwrap();
+    let mut output = [0xa5; 24];
+    assert_eq!(
+        unwrapper.unwrap_into(&wrapped, &mut output),
+        Err(DesEdeWrapError::IntegrityCheckFailed)
+    );
+    assert_eq!(output, [0xa5; 24]);
+}
+
+#[test]
+fn an_iv_supplied_for_unwrapping_is_rejected() {
     let key = hex(KEK);
     let iv = hex(IV);
     let params = KeyWithIvOptRef::new(&key, Some(&iv));
@@ -118,5 +127,35 @@ fn rejects_external_iv_for_unwrap() {
     assert_eq!(
         wrapper.init(WrapDirection::Unwrap, &params),
         Err(DesEdeWrapInitError::IvNotAllowedForUnwrap)
+    );
+}
+
+#[test]
+fn a_rejected_reinitialization_leaves_the_wrapper_uninitialized() {
+    let key = hex(KEK);
+    let iv = hex(IV);
+    let short_iv = [0x5d_u8; 7];
+    let mut wrapper = DesEdeWrapEngine::new(FixedRng::new(Vec::new()));
+    wrapper
+        .init(WrapDirection::Wrap, &KeyWithIvOptRef::new(&key, Some(&iv)))
+        .unwrap();
+
+    assert_eq!(
+        wrapper.init(
+            WrapDirection::Wrap,
+            &KeyWithIvOptRef::new(&key, Some(&short_iv))
+        ),
+        Err(DesEdeWrapInitError::InvalidIvLength {
+            actual: 7,
+            required: 8,
+        })
+    );
+    assert_eq!(
+        wrapper.wrap_into(&hex(INPUT), &mut [0; 40]),
+        Err(DesEdeWrapError::NotInitialized)
+    );
+    assert_eq!(
+        wrapper.unwrap_into(&hex(WRAPPED), &mut [0; 24]),
+        Err(DesEdeWrapError::NotInitialized)
     );
 }

@@ -83,8 +83,8 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: 1.85.0
       # Rust 1.85 covers the libraries with every first-party feature. The
-      # rfc3211 feature and tc_rc2_wrap follow rand_core's MSRV and
-      # dev-dependencies are exempt, so tests run on stable only.
+      # rfc3211 feature, tc_des_wrap and tc_rc2_wrap follow rand_core's MSRV
+      # and dev-dependencies are exempt, so tests run on stable only.
       - run: cargo +1.85.0 check --locked
       - run: cargo +1.85.0 check --locked -p tc_key_wrap --features rfc5649,alloc
 
@@ -115,7 +115,7 @@ jobs:
       # Packaged together so the wrappers are verified against this
       # tc_key_wrap; the wrappers not prepared for release yet join as they
       # are.
-      - run: cargo package --locked -p tc_key_wrap -p tc_rc2_wrap
+      - run: cargo package --locked -p tc_key_wrap -p tc_des_wrap -p tc_rc2_wrap
         env:
           # Keep unpacked package manifests outside rust-cache's build tree.
           CARGO_TARGET_DIR: ${{ runner.temp }}/package
@@ -152,5 +152,6 @@ jobs:
             check 'tc_block_cipher tc_constant_time tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc3394
             check 'tc_block_cipher tc_constant_time tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc5649
             check 'rand_core tc_block_cipher tc_key_wrap tc_zeroize' -p tc_key_wrap --target "$target" --features rfc3211
+            check 'rand_core tc_block_cipher tc_constant_time tc_des tc_des_wrap tc_digest tc_key_wrap tc_sha tc_zeroize' -p tc_des_wrap --target "$target"
             check 'rand_core tc_block_cipher tc_constant_time tc_digest tc_key_wrap tc_rc2_wrap tc_rc_cipher tc_sha tc_zeroize' -p tc_rc2_wrap --target "$target"
           done

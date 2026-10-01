@@ -23,6 +23,12 @@ const IV2: [u8; BLOCK_BYTES] = [0x4a, 0xdd, 0xa2, 0x2c, 0x79, 0xe8, 0x21, 0x05];
 /// Triple DES key, under a 16- or 24-byte key-encryption key. The output is 16
 /// bytes longer. Wrapping takes an 8-byte IV from its parameters or, given
 /// `None`, draws one from `R`; unwrapping recovers the IV from the input.
+/// The parameters implement `KeyParams` and `IvOptParams`, as the
+/// `KeyWithIvOpt*` containers of `tc_key_wrap` do.
+///
+/// The IV is fixed at `init`, as in Bouncy Castle: every wrap until the next
+/// `init` uses it. Initialize again before each wrap so that every wrapped key
+/// gets a fresh IV.
 ///
 /// Variable time: the Triple DES engine looks up S-boxes with secret data.
 /// Output left by a failed wrap is wiped.
@@ -245,9 +251,10 @@ where
     /// Installs the 16- or 24-byte Triple DES key from `params` for `direction`.
     ///
     /// Wrapping takes an 8-byte IV from `params` or, given `None`, draws one from
-    /// the generator; unwrapping takes no IV and returns `IvNotAllowedForUnwrap`
-    /// for one. A failed `init` leaves the wrapper uninitialized. Variable time: Triple DES key
-    /// setup depends on the key bits.
+    /// the generator, and keeps it for every wrap until the next `init`;
+    /// unwrapping takes no IV and returns `IvNotAllowedForUnwrap` for one. A
+    /// failed `init` leaves the wrapper uninitialized. Variable time: Triple DES
+    /// key setup depends on the key bits.
     fn init(&mut self, direction: WrapDirection, params: &P) -> Result<(), Self::Error> {
         // Invalidate first, so a failure at any step leaves neither the previous direction nor the
         // previous IV usable.
