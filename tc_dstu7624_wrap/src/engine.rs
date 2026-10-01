@@ -15,8 +15,14 @@ const MAX_HALF_BLOCK_BYTES: usize = MAX_BLOCK_BYTES / 2;
 /// DSTU 7624 key wrapping with a compile-time block width.
 ///
 /// `BLOCK_WORDS` counts 64-bit words: `Dstu7624WrapEngine::<2>`, `<4>` and
-/// `<8>` wrap with the 128-, 256- and 512-bit Kalyna engines. The key to wrap
-/// is a whole number of blocks, and the output is one block longer.
+/// `<8>` wrap with the 128-, 256- and 512-bit Kalyna engines. Prefer the
+/// [`Dstu7624WrapEngine128`], [`Dstu7624WrapEngine256`] and
+/// [`Dstu7624WrapEngine512`] aliases. The key to wrap
+/// is a whole number of blocks, and the output is one block longer. The
+/// parameters are any `KeyParams`, such as `tc_block_cipher::KeyRef`.
+///
+/// There is no IV: the same key-encryption key and key always give the same
+/// output.
 ///
 /// Variable time: the Kalyna engine looks up S-boxes with secret data. Output
 /// left by a failed wrap or unwrap is wiped.
@@ -25,12 +31,12 @@ const MAX_HALF_BLOCK_BYTES: usize = MAX_BLOCK_BYTES / 2;
 ///
 /// ```
 /// use tc_block_cipher::KeyRef;
-/// use tc_dstu7624_wrap::Dstu7624WrapEngine;
+/// use tc_dstu7624_wrap::Dstu7624WrapEngine128;
 /// use tc_key_wrap::{KeyWrap, KeyWrapInit, WrapDirection};
 ///
 /// let kek = [0x42; 16];
 /// let key = [0x11; 32];
-/// let mut wrapper = Dstu7624WrapEngine::<2>::new();
+/// let mut wrapper = Dstu7624WrapEngine128::new();
 ///
 /// wrapper.init(WrapDirection::Wrap, &KeyRef::new(&kek))?;
 /// let mut wrapped = [0; 48];
@@ -46,6 +52,16 @@ pub struct Dstu7624WrapEngine<const BLOCK_WORDS: usize> {
     cipher: Dstu7624Engine<BLOCK_WORDS>,
     direction: Option<WrapDirection>,
 }
+
+/// DSTU 7624 key wrapping with a 128-bit block and a 128- or 256-bit
+/// key-encryption key.
+pub type Dstu7624WrapEngine128 = Dstu7624WrapEngine<2>;
+/// DSTU 7624 key wrapping with a 256-bit block and a 256- or 512-bit
+/// key-encryption key.
+pub type Dstu7624WrapEngine256 = Dstu7624WrapEngine<4>;
+/// DSTU 7624 key wrapping with a 512-bit block and a 512-bit key-encryption
+/// key.
+pub type Dstu7624WrapEngine512 = Dstu7624WrapEngine<8>;
 
 impl<const BLOCK_WORDS: usize> Dstu7624WrapEngine<BLOCK_WORDS> {
     const BLOCK_BYTES: usize = BLOCK_WORDS * 8;
