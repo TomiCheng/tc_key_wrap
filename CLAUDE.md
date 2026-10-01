@@ -37,20 +37,22 @@ cipher: key lengths and timing guarantees of the engines belong to their own
 crates, such as `tc_aes`.
 
 `tc_key_wrap` owns the `KeyWrap` and `KeyWrapInit` contracts; algorithm-specific
-wrappers implement them rather than defining their own. `tc_rc2_wrap` is one:
-the CMS RC2 key wrap (RFC 3217) over `tc_rc_cipher`. It has no features and
-needs an allocator and `rand_core` in every build, so its dependency set is
-`rand_core`, `tc_block_cipher`, `tc_constant_time`, `tc_digest`, `tc_key_wrap`,
-`tc_rc_cipher`, `tc_sha` and `tc_zeroize`. The workspace also holds
-`tc_des_wrap` and `tc_dstu7624_wrap`, which are not prepared for release yet:
-they have no README, changelog or license texts, and CI neither packages them
-nor checks their dependency sets.
+wrappers implement them rather than defining their own. `tc_des_wrap` and
+`tc_rc2_wrap` are two: the CMS key wraps (RFC 3217) for Triple DES over
+`tc_des` and for RC2 over `tc_rc_cipher`. Neither has features; both need an
+allocator and `rand_core` in every build, so each depends on its cipher crate
+plus `rand_core`, `tc_block_cipher`, `tc_constant_time`, `tc_digest`,
+`tc_key_wrap`, `tc_sha` and `tc_zeroize`. Both fix the IV at `init`, as
+Bouncy Castle does. The workspace also holds `tc_dstu7624_wrap`, which is not
+prepared for release yet: it has no README, changelog or license texts, and CI
+neither packages it nor checks its dependency set.
 
 `Rfc3394WrapEngine` is constant time exactly when its cipher is.
 `Rfc5649WrapEngine` is too, except that its padding check follows the recovered
 length. `Rfc3211WrapEngine` is constant time exactly when its cipher is, apart
-from the key length and whether its check passed. `Rc2WrapEngine` is
-variable time, because the RC2 engine indexes tables with secret data.
+from the key length and whether its check passed. `DesEdeWrapEngine` and
+`Rc2WrapEngine` are variable time, because their engines index tables with
+secret data.
 `tests/documentation.rs` requires each declaration it scans to say which, and
 matches the phrase within one line, so never wrap a line between "constant" or
 "variable" and "time".
@@ -61,8 +63,8 @@ Rust 1.85 is guaranteed only where the workspace controls every crate: the
 default build and first-party features such as `rfc3394`, `rfc5649` and
 `alloc`, whose dependencies are all `tc_*` crates. A feature that enables a
 third-party crate (`rfc3211` enables `rand_core`, 0.10.1 of which declares
-1.85) follows that crate's MSRV, as does `tc_rc2_wrap`, whose every build
-needs `rand_core`; dev-dependencies are exempt. The MSRV job
+1.85) follows that crate's MSRV, as do `tc_des_wrap` and `tc_rc2_wrap`, whose
+every build needs `rand_core`; dev-dependencies are exempt. The MSRV job
 therefore runs `cargo check` on 1.85 for the guaranteed builds only; tests run
 on stable. `.cargo/config.toml` sets `incompatible-rust-versions = "allow"` so
 `Cargo.lock` tracks the latest releases and stable CI tests what current
@@ -99,7 +101,7 @@ doctests carry the executable examples, and CI runs `cargo doc` with
 feature-gated items break the build without that feature, so name them in plain
 code spans. An additive public API change belongs in the crate README's
 contract lists — "Types", "Traits" and "Features" in `tc_key_wrap/README.md`,
-"Types" in `tc_rc2_wrap/README.md` —
+"Types" in `tc_des_wrap/README.md` and `tc_rc2_wrap/README.md` —
 and in the changelog, not only in the code.
 
 Work happens on `feat/*` branches off `develop`; pull requests target `develop`,

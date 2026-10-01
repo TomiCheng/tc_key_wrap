@@ -13,7 +13,7 @@ categories = ["cryptography", "no-std"]
 include = ["src/**", "tests/**", "README.md", "CHANGELOG.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [dependencies]
-rand_core = { workspace = true }
+rand_core = "0.10.1"
 tc_block_cipher = "0.1.0"
 tc_constant_time = "0.1.0"
 tc_des = "0.1.0"
